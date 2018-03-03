@@ -5,7 +5,7 @@ from sklearn.kernel_ridge import KernelRidge
 from sklearn import clone
 import xgboost as xgb
 import numpy as np
-# import lightgbm as lgb
+import lightgbm as lgb
 import tensorflow as tf
 import warnings
 from sklearn.preprocessing import MinMaxScaler
@@ -51,26 +51,26 @@ class Model():
                 learning_rate=0.01,
                 max_depth=5,
                 min_child_weight=20,
-                n_estimators=7200,                                                                  
+                n_estimators=4000,                                                                  
                 reg_alpha=0.5,
                 reg_lambda=0.6,
                 subsample=0.5,
                 seed=42,
                 silent=1)
-		# if model == "lgb":
-		# 	self.model = LGBMRegressor(
-		# 		objective='regression',
-		# 		num_leaves=5,
-  #               learning_rate=0.05,
-  #               n_estimators=720,
-  #               max_bin = 55,
-  #               bagging_fraction = 0.8,
-  #               bagging_freq = 5,
-  #               feature_fraction = 0.2319,
-  #               feature_fraction_seed=9,
-  #               bagging_seed=9,
-  #               min_data_in_leaf=6,
-  #               min_sum_hessian_in_leaf=11)
+		if model == "lgb":
+			self.model = lgb.LGBMRegressor(
+				objective='regression',
+				num_leaves=5,
+                learning_rate=0.05,
+                n_estimators=720,
+                max_bin = 55,
+                bagging_fraction = 0.8,
+                bagging_freq = 5,
+                feature_fraction = 0.2319,
+                feature_fraction_seed=9,
+                bagging_seed=9,
+                min_data_in_leaf=6,
+                min_sum_hessian_in_leaf=11)
 
 	def train_validate(self, X, y, n_folds = 5):
 		# ~~~~~~~~~~~~~~~~~~ Summary ~~~~~~~~~~~~~~~~~~~~
@@ -137,7 +137,7 @@ class Model():
 		# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 		instance = clone(self.model)
 		instance.fit(X_train, y_train)
-		y_pred = self.model.predict(X_predict)
+		y_pred = instance.predict(X_predict)
 		return y_pred
 
 # ~~~~~~~~~~~~~~~~~~ Summary ~~~~~~~~~~~~~~~~~~~~
