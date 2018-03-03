@@ -1,12 +1,200 @@
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import KFold, cross_val_score, train_test_split
 from sklearn.metrics import mean_squared_error
+from models import Model, get_error
+import xgboost as xgb
+import numpy as np
+import pandas as pd
+import warnings
 
 
-class meanStacker():
-	def __init__(X, y):
+# ~~~~~~~~~~~~~~~~~~ Summary ~~~~~~~~~~~~~~~~~~~~
+# This function is the main workhorse of this script. It does the following:
+# 	1. Imports datasets and performs scaling (train and test csvs from data folder)
+#	2. Calls all base learners being used and trains them.
+#	3. Calls the stacker
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+def main():
+
+	# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	# 1. Imports and scaling
+	# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	train = pd.read_csv('./Data/train_dummies.csv')
+	test = pd.read_csv('./Data/test_dummies.csv')
+
+	# Change dataframes to numpy arrays
+	train = train.as_matrix()
+	test = test.as_matrix()
+
+	# Assuming sales price is the last column...
+	last_col = train.shape[1]-1
+	X_train = train[:,0:last_col]
+	y_train = train[:,last_col]
+	X_test = test
+
+	# Scaling both our X_train and X_test
+	prepro_X_train = MinMaxScaler(copy = False)
+	prepro_X_train.fit(X_train)
+
+	prepro_X_test = MinMaxScaler(copy = False)
+	prepro_X_test.fit(X_test)
+
+	# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	# 2. Base learners are trained and predictions are made
+	# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	lasso = Model(model = "lasso")
+	lasso_pred = lasso.train_validate(X_train, y_train)
+
+	elastic = Model(model = "elastic")
+	elastic_pred = elastic.train_validate(X_train, y_train)
+
+	rf = Model(model = "rf")
+	rf_pred = rf.train_validate(X_train, y_train)
+
+	# krr = Model(model = "krr")
+	# krr_pred = krr.train_validate(X_train, y_train)
+
+	# xgb = Model(model = "xgb")
+	# xgb_pred = xgb.train_validate(X_train, y_train)
+
+	# lgb = Model(model = "lgb")
+	# lgb_pred = lgb.train_validate(X_train, y_train)
+
+	# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	# 3. Stacking implementation for metamodel
+	# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	# Putting all of the predictions together into one numpy array.
+	X_stack = np.column_stack((lasso_pred, elastic_pred, rf_pred))#, krr_pred, xgb_pred, lgb_pred))
+
+	# Initializing Stacker and giving it the inputs:
+	# X_stack: combined base model predictions on training set
+	# y_train: true housing prices of training set
+	# X_test: Kaggle test set to predict on
+	stack = Stacker(model = "average")
+	stack.stack_valid_predict(X_stack, y_train, X_test, output_csv = "no")
+
+
+# ~~~~~~~~~~~~~~~~~~ Summary ~~~~~~~~~~~~~~~~~~~~
+# This is a stacking class that can stack with either xgboost or average stacker.
+# Later I will add best base and average stacking.
+#
+# ~~~~~~~~~~~~~~~~~~ Functions ~~~~~~~~~~~~~~~~~~~~
+#	- __init__: this initializes the stacking object, either xgboost metamodel, or an averaging function
+#				can be used
+#	- stack: this performs the stacking process
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class Stacker():
+	def __init__(self, model = "xgb"):
 		# Inputs:
-		#	- X: this is the matrix 
+		#	- model: this initializes the model
+
+		self.model_name = model
+
+		# Checking if the model parameter is a valid option.
+		list_models = ["xgb", "average"]
+		if model not in list_models:
+			raise ValueError('Please give a model that exists in housing_main.py: class "mean_stacker!"')
+
+		if model == "xgb":
+			self.model = xgb.XGBRegressor(
+					colsample_bytree=0.1,
+					gamma=10.0,
+					learning_rate=0.01,
+					max_depth=5,
+					min_child_weight=20,
+					n_estimators=7200,                                                                  
+					reg_alpha=0.5,
+					reg_lambda=0.6,
+					subsample=0.5,
+					seed=42,
+					silent=1)
+
+	def stack_valid_predict(self, X_train, y_train, X_test, output_csv = "no"):
+		# ~~~~~~~~~~~~~~~~~~ Summary ~~~~~~~~~~~~~~~~~~~~
+		# This function performs stacking on the training dataset
+		#
+		# ~~~~~~~~~~~~~~~~ Parameters ~~~~~~~~~~~~~~~~~~~
+		# Input:
+		#	- X_train: This is the base models predictions, shape is [1450 x n_base_models]
+		#	- y_train: This is the target dataset for the base model predictions, shape is [1450 x 1]
+		#	- X_test: The Kaggle test dataset
+		# Output:
+		#	- y_pred: predictions on X_test
+		#	- output_csv: (optional) This can be submitted to Kaggle competition
+		# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+		# Creating train/test split
+		X_train_stack, X_test_stack, y_train_stack, y_test_stack = train_test_split(X_train, y_train, 
+                                                       test_size=0.2, random_state=42)
+		
+		# Fitting the model chosen.
+		if self.model_name != "average":
+
+			# Turn off warnings
+			warnings.filterwarnings('ignore')
+
+			instance = clone(self.model)
+			instance.fit(X_train_stack, y_train_stack)
+			y_pred_stack = instance.predict(X_test_stack)
+
+			# Removing the clone
+			del instance
+
+			rmsle = get_error(y_pred_stack, y_test_stack)
+
+			# Getting score for training set stacking...
+			print("The rmsle on the stacking for {} stacking is {}".format(self.model_name, rmsle))
+
+		else:
+			y_pred_stack = np.mean(X_train, axis = 1)
+
+			rmsle = get_error(y_pred_stack, y_train)
+
+			# Getting score for training set stacking...
+			print("The rmsle on the stacking for {} stacking is {}".format(self.model_name, rmsle))
+
+		# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+		# Now that we have an idea of how good the model is, we would like to train it on the full train set,
+		# and predict on the Kaggle test set so we can generate a csv.
+
+		# Checking if user input was valid.
+		output_csv_list = ["yes", "no"]
+		if output_csv not in output_csv_list:
+			raise ValueError('Please give either a "yes" or "no" to the parameter "output_csv" in "stack_valid_predict"!')
+
+		# Train/predict on Kaggle test dataset...
+		if output_csv == "yes":
+			if self.model_name != "average":
+				instance = clone(self.model)
+				instance.fit(X_train, y_train)
+				y_pred = instance.predict(X_test)
+
+				# Removing the clone
+				del instance
+			else:
+				y_pred = np.mean(X_train, axis = 1)
+
+			filename = str(rmsle) + ".csv"
+			df = pd.DataFrame(y_pred)
+			df.to_csv(filename)
+
+if __name__ == "__main__":
+    # execute only if run as a script
+    main()
+
+
+
+
+
+
+
+
+
 
 
 
