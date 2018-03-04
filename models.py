@@ -1,6 +1,6 @@
 from sklearn.linear_model import ElasticNet, Lasso,  BayesianRidge, LassoLarsIC
 from sklearn.metrics import mean_squared_error
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor,  GradientBoostingRegressor
 from sklearn.kernel_ridge import KernelRidge
 from sklearn import clone
 import xgboost as xgb
@@ -31,32 +31,31 @@ class Model():
 		self.model_name = model
 
 		# Checking if the model parameter is a valid option.
-		list_models = ["lasso", "elastic", "rf", "krr", "xgb", "lgb"]
+		list_models = ["lasso", "elastic", "rf", "krr", "xgb", "lgb", "gboost"]
 		if model not in list_models:
 			raise ValueError('Please give a model that exists in models.py!')
 
 		# Creating the correct model.
+		if model == "gboost":
+			self.model = GradientBoostingRegressor(n_estimators=3000, learning_rate=0.05,
+                                   max_depth=4, max_features='sqrt',
+                                   min_samples_leaf=15, min_samples_split=10, 
+                                   loss='huber', random_state =5)
 		if model == "lasso":
-			self.model = Lasso(alpha = .001, random_state = 42)
+			self.model = Lasso(alpha = .0005, random_state = 42)
 		if model == "elastic":
-			self.model = ElasticNet(alpha=.005, l1_ratio=.9, random_state=42)
+			self.model = ElasticNet(alpha=.0005, l1_ratio=0.9, random_state=42)
 		if model == "rf":
-			self.model = RandomForestRegressor(n_estimators = 40, max_depth = 10, random_state = 42)
+			self.model = RandomForestRegressor(n_estimators = 95, max_depth = 300, random_state = 42)
 		if model == "krr":
-			self.model = KernelRidge(alpha=0.6, kernel='polynomial', degree=2, coef0=2.5)
+			self.model = KernelRidge(alpha=.6, kernel='polynomial', degree=2, coef0=2.5)
 		if model == "xgb":
-			self.model = xgb.XGBRegressor(
-                colsample_bytree=0.1,
-                gamma=10.0,
-                learning_rate=0.01,
-                max_depth=5,
-                min_child_weight=10,
-                n_estimators=2000,                                                                  
-                reg_alpha=0.5,
-                reg_lambda=0.6,
-                subsample=0.5,
-                seed=42,
-                silent=1)
+			self.model = xgb.XGBRegressor(colsample_bytree=0.4603, gamma=0.0468, 
+                             learning_rate=0.05, max_depth=3, 
+                             min_child_weight=1.7817, n_estimators=2200,
+                             reg_alpha=0.4640, reg_lambda=0.8571,
+                             subsample=0.5213, silent=1,
+                             random_state =7, nthread = -1)
 		# if model == "lgb":
 		# 	self.model = lgb.LGBMRegressor(
 		# 		objective='regression',
