@@ -5,7 +5,7 @@ from sklearn.kernel_ridge import KernelRidge
 from sklearn import clone
 import xgboost as xgb
 import numpy as np
-import lightgbm as lgb
+# import lightgbm as lgb
 import tensorflow as tf
 import warnings
 from sklearn.preprocessing import MinMaxScaler
@@ -37,7 +37,7 @@ class Model():
 
 		# Creating the correct model.
 		if model == "lasso":
-			self.model = Lasso(alpha = .85, random_state = 42)
+			self.model = Lasso(alpha = .001, random_state = 42)
 		if model == "elastic":
 			self.model = ElasticNet(alpha=.005, l1_ratio=.9, random_state=42)
 		if model == "rf":
@@ -50,27 +50,27 @@ class Model():
                 gamma=10.0,
                 learning_rate=0.01,
                 max_depth=5,
-                min_child_weight=20,
-                n_estimators=4000,                                                                  
+                min_child_weight=10,
+                n_estimators=2000,                                                                  
                 reg_alpha=0.5,
                 reg_lambda=0.6,
                 subsample=0.5,
                 seed=42,
                 silent=1)
-		if model == "lgb":
-			self.model = lgb.LGBMRegressor(
-				objective='regression',
-				num_leaves=5,
-                learning_rate=0.05,
-                n_estimators=720,
-                max_bin = 55,
-                bagging_fraction = 0.8,
-                bagging_freq = 5,
-                feature_fraction = 0.2319,
-                feature_fraction_seed=9,
-                bagging_seed=9,
-                min_data_in_leaf=6,
-                min_sum_hessian_in_leaf=11)
+		# if model == "lgb":
+		# 	self.model = lgb.LGBMRegressor(
+		# 		objective='regression',
+		# 		num_leaves=5,
+  #               learning_rate=0.05,
+  #               n_estimators=720,
+  #               max_bin = 55,
+  #               bagging_fraction = 0.8,
+  #               bagging_freq = 5,
+  #               feature_fraction = 0.2319,
+  #               feature_fraction_seed=9,
+  #               bagging_seed=9,
+  #               min_data_in_leaf=6,
+  #               min_sum_hessian_in_leaf=11)
 
 	def train_validate(self, X, y, n_folds = 5):
 		# ~~~~~~~~~~~~~~~~~~ Summary ~~~~~~~~~~~~~~~~~~~~
@@ -119,7 +119,7 @@ class Model():
 			# Predicting on out of fold
 			y_pred_all[test_index] = y_pred 
 
-		print("Log error across all validation folds for {} is {}".format(self.model_name, get_error(y_test, y_pred)))
+		print("Log error across all validation folds for {} is {}".format(self.model_name, get_error(y_test, y_pred, type = "rmse")))
 		return y_pred_all
 
 	def train_predict(self, X_train, y_train, X_predict):
@@ -137,6 +137,7 @@ class Model():
 		# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 		instance = clone(self.model)
 		instance.fit(X_train, y_train)
+
 		y_pred = instance.predict(X_predict)
 		return y_pred
 

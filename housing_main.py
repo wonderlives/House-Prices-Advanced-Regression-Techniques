@@ -1,4 +1,5 @@
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.linear_model import ElasticNet, Lasso,  BayesianRidge, LassoLarsIC
 from sklearn.model_selection import KFold, cross_val_score, train_test_split
 from sklearn.metrics import mean_squared_error
 from models import Model, get_error
@@ -7,6 +8,8 @@ import numpy as np
 import pandas as pd
 import warnings
 from sklearn import clone
+from bayes_opt import BayesianOptimization
+from sklearn.cross_validation import cross_val_score
 
 
 # ~~~~~~~~~~~~~~~~~~ Summary ~~~~~~~~~~~~~~~~~~~~
@@ -22,83 +25,55 @@ def main():
 	# 1. Imports and scaling
 	# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-	### Dummies dataset import
+	# Importing Roger's dataset
+	X_train_large, y_train, X_predict_large = import_data(name_data = "roger")
 
-	# Below is the full datset (with dummies and ~220 columns) 
-	train_dummies = pd.read_csv('./Data/train_dummies.csv')
-	test_dummies = pd.read_csv('./Data/test_dummies.csv')
-
-	# Change dataframes to numpy arrays
-	train_dummies = train_dummies.as_matrix()
-	X_predict_dummies = test_dummies.as_matrix()
-
-	# Assuming sales price is the last column...we separate out train_dummies
-	# We don't need y_train here because it is the same for train_linear, so we'll get it there.
-	last_col = train_dummies.shape[1]-1
-	X_train_dummies = train_dummies[:,0:last_col]
-
-	# Scaling X_train_dummies
-	prepro_X_train = MinMaxScaler(copy = False)
-	prepro_X_train.fit(X_train_dummies)
-
-	# Scaling X_predict_dummies
-	prepro_X_predict = MinMaxScaler(copy = False)
-	prepro_X_predict.fit(X_predict_dummies)
-
-	### Linear dataset import
-
-	# Below is the linear oriented data set with fewer features
-	train_linear = pd.read_csv('./Data/train_linear.csv')
-	test_linear = pd.read_csv('./Data/test_linear.csv')
-
-	train_linear = train_linear.as_matrix()
-	X_predict_linear = test_linear.as_matrix()
-
-	# Assuming sales price is the last column...we separate out train_dummies
-	last_col = train_linear.shape[1]-1
-	X_train_linear = train_linear[:,0:last_col]
-	y_train = train_linear[:,last_col]
+	### Smaller dataset import (for linear)
+	# X_train_linear, y_train, X_predict_linear = import_data(name_data = "peter")
 
 	# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	# 2. Base learners are trained and predictions are made on the training set.
 	# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-	# Linear models (these use X_train_linear and X_predict_linear):
+	#Linear model parameters
+	X_train = X_train_large
+	X_predict = X_predict_large
 
 	lasso = Model(model = "lasso")
-	lasso_pred = lasso.train_validate(X_train_linear, y_train)
-	lasso_test_pred = lasso.train_predict(X_train_linear, y_train, X_predict_linear)
+	lasso_pred = lasso.train_validate(X_train, y_train)
+	lasso_test_pred = lasso.train_predict(X_train, y_train, X_predict)
 
 	elastic = Model(model = "elastic")
-	elastic_pred = elastic.train_validate(X_train_linear, y_train)
-	elastic_test_pred = elastic.train_predict(X_train_linear, y_train, X_predict_linear)
+	elastic_pred = elastic.train_validate(X_train, y_train)
+	elastic_test_pred = elastic.train_predict(X_train, y_train, X_predict)
 
 	# krr = Model(model = "krr")
-	# krr_pred = krr.train_validate(X_train_linear, y_train)
-	# krr_test_pred = krr.train_predict(X_train_linear, y_train, X_predict_linear)
+	# krr_pred = krr.train_validate(X_train, y_train)
+	# krr_test_pred = krr.train_predict(X_train, y_train, X_predict)
 
-
-	# Non-linear models (these use X_train_dummies and X_predict_dummies):
+	#Nonlinear model parameters
+	X_train = X_train_large
+	X_predict = X_predict_large
 
 	rf = Model(model = "rf")
-	rf_pred = rf.train_validate(X_train_dummies, y_train)
-	rf_test_pred = rf.train_predict(X_train_dummies, y_train, X_predict_dummies)
+	rf_pred = rf.train_validate(X_train, y_train)
+	rf_test_pred = rf.train_predict(X_train, y_train, X_predict)
 
-	# xgb = Model(model = "xgb")
-	# xgb_pred = xgb.train_validate(X_train_dummies, y_train)
-	# xgb_test_pred = xgb.train_predict(X_train_dummies, y_train, X_predict_dummies)
+	xgb = Model(model = "xgb")
+	xgb_pred = xgb.train_validate(X_train, y_train)
+	xgb_test_pred = xgb.train_predict(X_train, y_train, X_predict)
 
 	# lgb = Model(model = "lgb")
-	# lgb_pred = lgb.train_validate(X_train_dummies, y_train)
-	# lgb_test_pred = lgb.train_predict(X_train_dummies, y_train, X_predict_dummies)
+	# lgb_pred = lgb.train_validate(X_train, y_train)
+	# lgb_test_pred = lgb.train_predict(X_train, y_train, X_predict)
 
 	# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	# 3. Stacking implementation for metamodel
 	# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 	# Putting all of the training set predictions together into one numpy array.
-	X_stack_train = np.column_stack((lasso_pred, elastic_pred, rf_pred)) #, krr_pred, xgb_pred, lgb_pred))
-	X_stack_predict = np.column_stack((lasso_test_pred, elastic_test_pred, rf_test_pred))#, krr__test_pred, xgb_test_pred, lgb_test_pred))
+	X_stack_train = np.column_stack((lasso_pred, elastic_pred, rf_pred, xgb_pred)) #, krr_pred, xgb_pred, lgb_pred))
+	X_stack_predict = np.column_stack((lasso_test_pred, elastic_test_pred, rf_test_pred, xgb_test_pred))#, krr__test_pred, xgb_test_pred, lgb_test_pred))
 
 	# Initializing Stacker and giving it the inputs:
 	# X_stack: combined base model predictions on training set
@@ -174,7 +149,7 @@ class Stacker():
 			# Removing the clone
 			del instance
 
-			rmsle = get_error(y_test_stack, y_pred_stack)
+			rmsle = get_error(y_test_stack, y_pred_stack, type = "rmse")
 
 			# Getting score for training set stacking...
 			print("The rmsle on the stacking for {} stacking is {}".format(self.model_name, rmsle))
@@ -182,7 +157,7 @@ class Stacker():
 		else:
 			y_pred_stack = np.mean(X_stack_train_full, axis = 1)
 
-			rmsle = get_error(y_stack_train_full, y_pred_stack)
+			rmsle = get_error(y_stack_train_full, y_pred_stack, type = "rmse")
 
 			# Getting score for training set stacking...
 			print("The rmsle on the stacking for {} stacking is {}".format(self.model_name, rmsle))
@@ -214,9 +189,50 @@ class Stacker():
 			df = pd.DataFrame(y_pred)
 			df.to_csv(filename)
 
+def optimize():
+	lasso_BO = BayesianOptimization(lasso_func, {'alpha': (0.001, 1000)})
+	lasso_BO.explore({'alpha': [0.001, 0.01, 0.1, 1, 10, 100]})
+	lasso_BO.maximize(n_iter=30)
+	print(lasso_BO.res['max'])
+
+
+def lasso_func(alpha):
+	X_train, y_train, X_predict = import_data(name_data = "roger")
+
+	val = cross_val_score(Lasso(alpha = alpha, random_state = 2), X_train, y_train, cv=2).mean()
+	return val
+
+
+def import_data(name_data):
+
+	# Below is roger's dataset 
+	if name_data == "roger":
+		train = pd.read_csv('./Data/train_120feats_Dense_OutlierFree_LogTransform.csv')
+		test = pd.read_csv('./Data/test_119feats_Dense_OutlierFree_LogTransform.csv')
+
+	# Below is peter's dataset
+	if name_data == "peter":
+		train = pd.read_csv('./Data/train_linear.csv')
+		test = pd.read_csv('./Data/test_linear.csv')
+
+	# Change dataframes to numpy arrays
+	train = train.as_matrix()
+	X_predict = test.as_matrix()
+
+	# Assuming sales price is the last column...we separate out train_dummies
+	# We don't need y_train here because it is the same for train_linear, so we'll get it there.
+	last_col = train.shape[1]-1
+	X_train = train[:,0:last_col]
+	y_train = train[:,last_col]
+
+	return X_train, y_train, X_predict
+
+
+
 if __name__ == "__main__":
     # execute only if run as a script
     main()
+    # optimize()
 
 
 
