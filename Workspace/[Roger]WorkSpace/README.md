@@ -1,4 +1,8 @@
-# HousingPricesML
-A machine learning project looking at the House Prices dataset on Kaggle.
-
-Team project at NYCDSA.
+# Roger's working directory
+---
+1. Clustering labels
+	- Perform different clustering methods
+	- Justify
+	- Put index into the data
+2. Data cleaning functions
+3. LightGBM
