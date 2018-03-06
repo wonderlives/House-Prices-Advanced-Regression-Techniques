@@ -58,7 +58,7 @@ class Model():
                                    min_samples_leaf=17, min_samples_split=min_samples_split+2, 
                                    loss='huber', random_state =5)
 		elif model == "ridge":
-			self.model = Ridge(alpha = alpha, random_state = random_state)
+			self.model = Ridge(alpha = .1)
 		elif model == "lasso":
 			self.model = Lasso(alpha = alpha, random_state = random_state)
 		elif model == "elastic":
@@ -272,5 +272,5 @@ def get_error(y_true, y_pred, type = "rmsle"):
 	# Root mean square log error (RMSLE)
 	if type == "rmsle":
 
-		return np.square(np.array(list(map(math.log, y_pred))) - np.log(y_true)).mean() ** 0.5
+		return np.square(np.log(y_pred) - np.log(y_true)).mean() ** 0.5
 

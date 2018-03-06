@@ -40,11 +40,12 @@ def main():
 	# These are then added to the stacking matrix.
 	# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-	for i in range(2):
-		models = ["lasso", "elastic", "lgb", "gboost", "gboost_deep", "xgb", "xgb_deep"] #ridge, svr, krr, ada
-		print("Will now run {} models and average their predictions...".format(len(models)))
-		X_stack_train = np.zeros((y_train.shape[0], len(models)))
-		X_stack_predict = np.zeros((X_predict.shape[0], len(models)))
+	numRounds = 2
+	models = ["lasso", "elastic", "lgb", "gboost", "gboost_deep", "xgb", "xgb_deep"] #svr, krr, ada
+	X_stack_train = np.zeros((y_train.shape[0], len(models)*numRounds))
+	X_stack_predict = np.zeros((X_predict.shape[0], len(models)*numRounds))
+	for i in range(numRounds):
+		print("Will now run {} models and average their predictions...Round {} of {}.".format(len(models), i+1, numRounds))
 		j = 0
 		for model in models:
 			indexCol = len(models) * i + j
