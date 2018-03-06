@@ -40,7 +40,7 @@ def main():
 	# These are then added to the stacking matrix.
 	# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-	numRounds = 2
+	numRounds = 100
 	models = ["lasso", "elastic", "lgb", "gboost", "gboost_deep", "xgb", "xgb_deep"] #svr, krr, ada
 	X_stack_train = np.zeros((y_train.shape[0], len(models)*numRounds))
 	X_stack_predict = np.zeros((X_predict.shape[0], len(models)*numRounds))
@@ -49,6 +49,8 @@ def main():
 		j = 0
 		for model in models:
 			indexCol = len(models) * i + j
+			val = ((indexCol)/(len(models)*numRounds))*100
+			print("============================ {}% Complete ============================".format(round(val,5))
 			instance = Model(model = model)
 			instance_pred = instance.train_validate(X_train, y_train)
 			instance_test_pred = instance.train_predict(X_train, y_train, X_predict)
