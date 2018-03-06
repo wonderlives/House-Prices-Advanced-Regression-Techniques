@@ -1,11 +1,12 @@
-from sklearn.linear_model import ElasticNet, Lasso,  BayesianRidge, LassoLarsIC
+from sklearn.linear_model import ElasticNet, Lasso,  BayesianRidge, LassoLarsIC, Ridge
 from sklearn.metrics import mean_squared_error
-from sklearn.ensemble import RandomForestRegressor,  GradientBoostingRegressor
+from sklearn.ensemble import RandomForestRegressor,  GradientBoostingRegressor, AdaBoostRegressor
 from sklearn.kernel_ridge import KernelRidge
 from sklearn import clone
+from sklearn import tree
 import xgboost as xgb
 import numpy as np
-# import lightgbm as lgb
+import lightgbm as lgb
 import tensorflow as tf
 import warnings
 from sklearn.preprocessing import MinMaxScaler
@@ -16,6 +17,8 @@ from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import StratifiedKFold 
 from sklearn.model_selection import KFold 
 import warnings
+from sklearn.svm import SVR
+
 
 
 # ~~~~~~~~~~~~~~~~~~ Summary ~~~~~~~~~~~~~~~~~~~~
@@ -30,46 +33,63 @@ class Model():
 	def __init__(self, alpha = .85, random_state = 1, model = "lasso"):
 		self.model_name = model
 
-		# Checking if the model parameter is a valid option.
-		list_models = ["lasso", "elastic", "rf", "krr", "xgb", "lgb", "gboost"]
-		if model not in list_models:
-			raise ValueError('Please give a model that exists in models.py!')
-
 		# Creating the correct model.
 		if model == "gboost":
 			self.model = GradientBoostingRegressor(n_estimators=3000, learning_rate=0.05,
                                    max_depth=4, max_features='sqrt',
                                    min_samples_leaf=15, min_samples_split=10, 
                                    loss='huber', random_state =5)
-		if model == "lasso":
+		elif model == "gboost_deep":
+			self.model = GradientBoostingRegressor(n_estimators=5000, learning_rate=0.02,
+                                   max_depth=6, max_features='sqrt',
+                                   min_samples_leaf=17, min_samples_split=12, 
+                                   loss='huber', random_state =5)
+		elif model == "ridge":
+			self.model = Ridge(alpha = .0005, random_state = 42)
+		elif model == "lasso":
 			self.model = Lasso(alpha = .0005, random_state = 42)
-		if model == "elastic":
+		elif model == "elastic":
 			self.model = ElasticNet(alpha=.0005, l1_ratio=0.9, random_state=42)
-		if model == "rf":
+		elif model == "rf":
 			self.model = RandomForestRegressor(n_estimators = 95, max_depth = 300, random_state = 42)
-		if model == "krr":
+		elif model == "krr":
 			self.model = KernelRidge(alpha=.6, kernel='polynomial', degree=2, coef0=2.5)
-		if model == "xgb":
+		elif model == "xgb":
 			self.model = xgb.XGBRegressor(colsample_bytree=0.4603, gamma=0.0468, 
                              learning_rate=0.05, max_depth=3, 
                              min_child_weight=1.7817, n_estimators=2200,
                              reg_alpha=0.4640, reg_lambda=0.8571,
                              subsample=0.5213, silent=1,
                              random_state =7, nthread = -1)
-		# if model == "lgb":
-		# 	self.model = lgb.LGBMRegressor(
-		# 		objective='regression',
-		# 		num_leaves=5,
-  #               learning_rate=0.05,
-  #               n_estimators=720,
-  #               max_bin = 55,
-  #               bagging_fraction = 0.8,
-  #               bagging_freq = 5,
-  #               feature_fraction = 0.2319,
-  #               feature_fraction_seed=9,
-  #               bagging_seed=9,
-  #               min_data_in_leaf=6,
-  #               min_sum_hessian_in_leaf=11)
+
+		elif model == "xgb_deep":
+			self.model = xgb.XGBRegressor(colsample_bytree=0.4603, gamma=0.0468, 
+                             learning_rate=0.05, max_depth=7, 
+                             min_child_weight=1.7817, n_estimators=4000,
+                             reg_alpha=0.4640, reg_lambda=0.8571,
+                             subsample=0.5213, silent=1,
+                             random_state =7, nthread = -1)
+		elif model == "adaboost":
+			self.model = AdaBoostRegressor(tree.DecisionTreeRegressor(),
+                          n_estimators=500, random_state=42)
+		elif model == "svr":
+			self.model = SVR(C=10, epsilon=0.0, kernel = 'rbf')
+		elif model == "lgb":
+			self.model = lgb.LGBMRegressor(
+				objective='regression',
+				num_leaves=5,
+                learning_rate=0.05,
+                n_estimators=720,
+                max_bin = 55,
+                bagging_fraction = 0.8,
+                bagging_freq = 5,
+                feature_fraction = 0.2319,
+                feature_fraction_seed=9,
+                bagging_seed=9,
+                min_data_in_leaf=6,
+                min_sum_hessian_in_leaf=11)
+		else:
+			raise ValueError('Please give a model that exists in models.py!')
 
 	def train_validate(self, X, y, n_folds = 5):
 		# ~~~~~~~~~~~~~~~~~~ Summary ~~~~~~~~~~~~~~~~~~~~
@@ -85,9 +105,6 @@ class Model():
 		#	- y_pred_all: this is the predictions from each fold combined with each other
 		# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-		# Turn off warnings
-		warnings.filterwarnings('ignore')
-
 		# Either stratified or not
 		skf = KFold(n_splits=n_folds)
 		#skf = StratifiedKFold(n_splits=n_folds)
@@ -101,14 +118,29 @@ class Model():
 
 			# Cloning to avoid residual fits
 			instance = clone(self.model)
-			instance.fit(X_train, y_train)
+
+			# NOTE: If you don't want to transform, comment this.
+			# Forward transform (normalizing for effect of national average)
+			# y_transform = transform_y(X_train, y_train, direction = "forward")
+
+			# Turn off warnings
+			warnings.filterwarnings('ignore')
+
+			# Fitting
+			instance.fit(X_train, y_train) #, y_transform)
+
+			# Get predictions
 			y_pred = instance.predict(X_test)
+
+			# NOTE: If you don't want to transform, comment this.
+			# Reverse to original data (adding effect of year back in)
+			# y_pred = transform_y(X_test, y_pred, direction = "reverse")
 
 			# Removing the clone
 			del instance
 
 			# Anything less than $0 is put to 50,000
-			mask = y_pred<0
+			mask = y_pred < 0
 			y_pred[mask] = 50000
 
 			# Adding to error sum.
@@ -139,6 +171,45 @@ class Model():
 
 		y_pred = instance.predict(X_predict)
 		return y_pred
+
+
+
+# def transform_y(X, y, direction):
+# 	# If direction is forward, then we want to scale the costs so that the higher housing market years
+# 	# like 2007 have y values that are scaled lower (to normalize for price), while 2009 houses are scaled
+# 	# up (to normalize for price).
+# 	time_series = pd.read_csv('./Data/time_series.csv')
+
+# 	# Undo log transform
+# 	y = np.exp(y)
+
+# 	X_and_y  = np.column_stack((X, y))
+# 	X_and_y = pd.DataFrame(X_and_y)
+
+# 	print("merging two dataframes, time series and X_y")
+# 	print(X_and_y.shape)
+# 	X_and_y = pd.merge(X_and_y, time_series,  how='left', left_on=[61,60], right_on = ['YrSold','MoSold'])
+# 	print(X_and_y.shape)
+
+
+
+# 	# Important column indices for Roger's data (0 index):
+# 	# YrSold: 61
+# 	# MoSold: 60
+# 	# SalePrice: 119
+# 	if direction == "forward":
+		
+# 		# Redo log transform
+# 	if direction == "reverse":
+
+# 		# Redo log transform
+# 	# After scaling, remove columns
+# 	# index_online
+# 	# index_lowest
+# 	# index_scaled
+
+
+
 
 # ~~~~~~~~~~~~~~~~~~ Summary ~~~~~~~~~~~~~~~~~~~~
 # get_error returns root mean square log error or root mean square error.
