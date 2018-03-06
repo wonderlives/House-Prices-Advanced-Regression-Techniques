@@ -18,6 +18,13 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import KFold 
 import warnings
 from sklearn.svm import SVR
+import pandas as pd
+import math
+import random
+
+
+# Turn off warnings
+warnings.filterwarnings('ignore')
 
 
 
@@ -32,58 +39,67 @@ class Model():
 
 	def __init__(self, alpha = .85, random_state = 1, model = "lasso"):
 		self.model_name = model
-
+		n_estimators = random.randint(2500, 5000)
+		alpha = random.uniform(.0001, .001)
+		l1_ratio = random.uniform(.7, .95)
+		min_samples_split = random.randint(8, 12)
+		random_state = random.randint(8, 50)
+		max_depth = random.randint(2, 7)
 		# Creating the correct model.
 		if model == "gboost":
-			self.model = GradientBoostingRegressor(n_estimators=3000, learning_rate=0.05,
-                                   max_depth=4, max_features='sqrt',
-                                   min_samples_leaf=15, min_samples_split=10, 
+
+			self.model = GradientBoostingRegressor(n_estimators=n_estimators, learning_rate=0.05,
+                                   max_depth=max_depth, max_features='sqrt',
+                                   min_samples_leaf=15, min_samples_split=min_samples_split, 
                                    loss='huber', random_state =5)
 		elif model == "gboost_deep":
-			self.model = GradientBoostingRegressor(n_estimators=5000, learning_rate=0.02,
-                                   max_depth=6, max_features='sqrt',
-                                   min_samples_leaf=17, min_samples_split=12, 
+			self.model = GradientBoostingRegressor(n_estimators=n_estimators+2000, learning_rate=0.02,
+                                   max_depth=max_depth + 2, max_features='sqrt',
+                                   min_samples_leaf=17, min_samples_split=min_samples_split+2, 
                                    loss='huber', random_state =5)
 		elif model == "ridge":
-			self.model = Ridge(alpha = .0005, random_state = 42)
+			self.model = Ridge(alpha = alpha, random_state = random_state)
 		elif model == "lasso":
-			self.model = Lasso(alpha = .0005, random_state = 42)
+			self.model = Lasso(alpha = alpha, random_state = random_state)
 		elif model == "elastic":
-			self.model = ElasticNet(alpha=.0005, l1_ratio=0.9, random_state=42)
+			self.model = ElasticNet(alpha=alpha, l1_ratio=l1_ratio, random_state = random_state)
 		elif model == "rf":
 			self.model = RandomForestRegressor(n_estimators = 95, max_depth = 300, random_state = 42)
 		elif model == "krr":
 			self.model = KernelRidge(alpha=.6, kernel='polynomial', degree=2, coef0=2.5)
 		elif model == "xgb":
 			self.model = xgb.XGBRegressor(colsample_bytree=0.4603, gamma=0.0468, 
-                             learning_rate=0.05, max_depth=3, 
-                             min_child_weight=1.7817, n_estimators=2200,
+                             learning_rate=0.05, max_depth=max_depth, 
+                             min_child_weight=1.7817, n_estimators=n_estimators,
                              reg_alpha=0.4640, reg_lambda=0.8571,
                              subsample=0.5213, silent=1,
-                             random_state =7, nthread = -1)
+                             random_state = random_state, nthread = -1)
 
 		elif model == "xgb_deep":
 			self.model = xgb.XGBRegressor(colsample_bytree=0.4603, gamma=0.0468, 
-                             learning_rate=0.05, max_depth=7, 
-                             min_child_weight=1.7817, n_estimators=4000,
+                             learning_rate=0.05, max_depth=max_depth+3, 
+                             min_child_weight=1.7817, n_estimators=n_estimators + 2000,
                              reg_alpha=0.4640, reg_lambda=0.8571,
                              subsample=0.5213, silent=1,
-                             random_state =7, nthread = -1)
+                             random_state = random_state, nthread = -1)
 		elif model == "adaboost":
 			self.model = AdaBoostRegressor(tree.DecisionTreeRegressor(),
                           n_estimators=500, random_state=42)
 		elif model == "svr":
 			self.model = SVR(C=10, epsilon=0.0, kernel = 'rbf')
 		elif model == "lgb":
+			feature_fraction = random.uniform(.2, .27)
+			bagging_fraction = random.uniform(.7, .9)
+			max_bin = random.randint(40, 65)
 			self.model = lgb.LGBMRegressor(
 				objective='regression',
 				num_leaves=5,
                 learning_rate=0.05,
-                n_estimators=720,
-                max_bin = 55,
-                bagging_fraction = 0.8,
+                n_estimators=n_estimators,
+                max_bin = max_bin,
+                bagging_fraction = bagging_fraction,
                 bagging_freq = 5,
-                feature_fraction = 0.2319,
+                feature_fraction = feature_fraction,
                 feature_fraction_seed=9,
                 bagging_seed=9,
                 min_data_in_leaf=6,
@@ -112,6 +128,7 @@ class Model():
 		y_pred_all = np.zeros(len(y))
 		log_error_sum = 0
 
+		i = 0
 		for train_index, test_index in skf.split(X, y):
 			X_train, X_test = X[train_index], X[test_index]
 			y_train, y_test = y[train_index], y[test_index]
@@ -122,9 +139,6 @@ class Model():
 			# NOTE: If you don't want to transform, comment this.
 			# Forward transform (normalizing for effect of national average)
 			# y_transform = transform_y(X_train, y_train, direction = "forward")
-
-			# Turn off warnings
-			warnings.filterwarnings('ignore')
 
 			# Fitting
 			instance.fit(X_train, y_train) #, y_transform)
@@ -150,6 +164,8 @@ class Model():
 			# Predicting on out of fold
 			y_pred_all[test_index] = y_pred 
 
+			i += 1 
+
 		print("Log error across all validation folds for {} is {}".format(self.model_name, get_error(y_test, y_pred, type = "rmse")))
 		return y_pred_all
 
@@ -174,41 +190,68 @@ class Model():
 
 
 
-# def transform_y(X, y, direction):
-# 	# If direction is forward, then we want to scale the costs so that the higher housing market years
-# 	# like 2007 have y values that are scaled lower (to normalize for price), while 2009 houses are scaled
-# 	# up (to normalize for price).
-# 	time_series = pd.read_csv('./Data/time_series.csv')
+### DOESN'T HELP, MAYBE TRY SEASONALITY LATER? PROBS NOT...already have month column.
+def transform_y(X, y, direction):
+	# ~~~~~~~~~~~~~~~~~~ Summary ~~~~~~~~~~~~~~~~~~~~
+	# If direction is forward, then we want to scale the costs so that the higher housing market years
+	# like 2007 have y values that are scaled lower (to normalize for price), while 2009 houses are scaled
+	# up (to normalize for price).
+	# ~~~~~~~~~~~~~~~~ Parameters ~~~~~~~~~~~~~~~~~~~
+	# Input:
+	#	- X: Training dataset
+	#	- y: Training labels
+	#	- direction: "forward" or "reverse"
+	# Output:
+	#	- y: Changed y values
+	# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	time_series = pd.read_csv('./Data/time_series.csv')
 
-# 	# Undo log transform
-# 	y = np.exp(y)
+	# Undo log transform
+	y = np.exp(y)
 
-# 	X_and_y  = np.column_stack((X, y))
-# 	X_and_y = pd.DataFrame(X_and_y)
+	# Combining X and y and adding to a dataframe
+	X_and_y  = np.column_stack((X, y))
+	X_and_y = pd.DataFrame(X_and_y)
 
-# 	print("merging two dataframes, time series and X_y")
-# 	print(X_and_y.shape)
-# 	X_and_y = pd.merge(X_and_y, time_series,  how='left', left_on=[61,60], right_on = ['YrSold','MoSold'])
-# 	print(X_and_y.shape)
+	# Changing all columns to strings, merging dataframe with time series info.
+	X_and_y.columns = X_and_y.columns.astype(str)
+	X_and_y = pd.merge(X_and_y, time_series,  how='left', left_on=["61","60"], right_on = ['YrSold','MoSold'])
+
+	# Getting column for scaling
+	colScale = 125
+
+	# Convert to np array
+	X_and_y = X_and_y.as_matrix()
+
+	if direction == "forward":
+		print("forward")
+		print(X_and_y[1:3,[60, 61, 119, colScale]])
+
+		# Transforming y here by 0-1 scalar (usually like 85%-100% or something)
+		X_and_y[:,119] = np.multiply(X_and_y[:,119], X_and_y[:,colScale])
+		print(X_and_y[1:3,[60, 61, 119, colScale]])
+
+		# Redo log transform
+		X_and_y[:,119] = np.array(list(map(math.log, X_and_y[:,119])))
+		y = X_and_y[:,119]
+
+	if direction == "reverse":
+		print("reverse")
+		print(X_and_y[1:3,[60, 61, 119, colScale]])
+
+		# Transforming y here by 0-1 scalar (usually like 85%-100% or something)
+		X_and_y[:,119] = np.divide(X_and_y[:,119], X_and_y[:,colScale])
+		print(X_and_y[1:3,[60, 61, 119, colScale]])
+
+		# Redo log transform
+		X_and_y[:,119] = np.array(list(map(math.log, X_and_y[:,119])))
+		y = X_and_y[:,119]
 
 
+	del X_and_y
+	del time_series
 
-# 	# Important column indices for Roger's data (0 index):
-# 	# YrSold: 61
-# 	# MoSold: 60
-# 	# SalePrice: 119
-# 	if direction == "forward":
-		
-# 		# Redo log transform
-# 	if direction == "reverse":
-
-# 		# Redo log transform
-# 	# After scaling, remove columns
-# 	# index_online
-# 	# index_lowest
-# 	# index_scaled
-
-
+	return y
 
 
 # ~~~~~~~~~~~~~~~~~~ Summary ~~~~~~~~~~~~~~~~~~~~
@@ -228,5 +271,6 @@ def get_error(y_true, y_pred, type = "rmsle"):
 
 	# Root mean square log error (RMSLE)
 	if type == "rmsle":
-		return np.square(np.log(y_pred) - np.log(y_true)).mean() ** 0.5
+
+		return np.square(np.array(list(map(math.log, y_pred))) - np.log(y_true)).mean() ** 0.5
 

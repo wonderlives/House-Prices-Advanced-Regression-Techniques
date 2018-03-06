@@ -40,18 +40,20 @@ def main():
 	# These are then added to the stacking matrix.
 	# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-	models = ["lasso", "elastic", "lgb", "gboost", "gboost_deep", "xgb", "xgb_deep"] #ridge, svr, krr, ada
-	X_stack_train = np.zeros((y_train.shape[0], len(models)))
-	X_stack_predict = np.zeros((X_predict.shape[0], len(models)))
-	i = 0
-	for model in models:
-		instance = Model(model = model)
-		instance_pred = instance.train_validate(X_train, y_train)
-		instance_test_pred = instance.train_predict(X_train, y_train, X_predict)
-		X_stack_train[:,i] = instance_pred
-		X_stack_predict[:,i] = instance_test_pred
-		i += 1
-
+	for i in range(2):
+		models = ["lasso", "elastic", "lgb", "gboost", "gboost_deep", "xgb", "xgb_deep"] #ridge, svr, krr, ada
+		print("Will now run {} models and average their predictions...".format(len(models)))
+		X_stack_train = np.zeros((y_train.shape[0], len(models)))
+		X_stack_predict = np.zeros((X_predict.shape[0], len(models)))
+		j = 0
+		for model in models:
+			indexCol = len(models) * i + j
+			instance = Model(model = model)
+			instance_pred = instance.train_validate(X_train, y_train)
+			instance_test_pred = instance.train_predict(X_train, y_train, X_predict)
+			X_stack_train[:,indexCol] = instance_pred
+			X_stack_predict[:,indexCol] = instance_test_pred
+			j += 1
 
 	# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	# 3. Stacking implementation 
