@@ -84,6 +84,7 @@ def main():
 #	- stack: this performs the stacking process
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class Stacker():
+	
 	def __init__(self, model = "xgb"):
 		# Inputs:
 		#	- model: this initializes the model
